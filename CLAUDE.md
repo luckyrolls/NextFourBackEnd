@@ -35,7 +35,7 @@ Member-to-member social/coordination layer for pickleball facilities, sitting al
 - Windows desktop primary; MacBook secondary. Anything with shell scripts must work on both (prefer npm scripts / node over bash-isms).
 - Repos:
   - App: https://github.com/luckyrolls/NextFourApp
-  - Backend: https://github.com/luckyrolls/NextFourBackend
+  - Backend: https://github.com/luckyrolls/NextFourBackEnd
 - Supabase project ref: `zkxvalydqymacenulcdj` (URL: https://zkxvalydqymacenulcdj.supabase.co).
   Dedicated new project — not Moosii's.
 - Supabase keys are the **new format** (`publishable` / `secret`), not legacy anon/service_role.
