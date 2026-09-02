@@ -50,7 +50,24 @@ Member-to-member social/coordination layer for pickleball facilities, sitting al
 
 *(Append as discovered. Empty is a good sign; undocumented is not.)*
 
-- [none yet]
+**Render — buildCommand must compile TypeScript, and must force dev dependencies.**
+Two distinct failure modes, both seen:
+1. A build command of `npm install` alone (Render's default for a service created in
+   the dashboard rather than from the Blueprint) never runs `tsc`, so `dist/` does not
+   exist and `npm run start` exits immediately with `MODULE_NOT_FOUND`.
+2. Adding `npm run build` is not sufficient on its own. `render.yaml` sets
+   `NODE_ENV=production`, and npm honours that by omitting `devDependencies` — where
+   `typescript` lives. `npm ci && npm run build` therefore fails with `tsc: not found`.
+   The build command must be `npm ci --include=dev && npm run build`.
+Rule of thumb: if a build-time tool is in `devDependencies`, the deploy build command
+has to ask for dev dependencies explicitly.
+
+**Migrations must use the Supabase SESSION POOLER connection string, not Direct
+connection.** Direct connection (`db.<project-ref>.supabase.co`) resolves to IPv6 only
+and fails with `ENOTFOUND` on IPv4-only networks, which includes most home ISPs.
+The session pooler host contains `pooler.supabase.com` and the user is
+`postgres.<project-ref>` (not bare `postgres`). This is what `SUPABASE_DB_URL` in
+`.env.example` documents.
 
 ## Definition of done per slice
 

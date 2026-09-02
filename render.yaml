@@ -7,7 +7,10 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm ci && npm run build
+    # --include=dev is required: NODE_ENV=production (below) makes npm omit
+    # devDependencies, and typescript lives there. Without it tsc is absent,
+    # the build fails, and dist/ never exists.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
