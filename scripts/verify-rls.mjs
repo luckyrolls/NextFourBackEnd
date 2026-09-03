@@ -77,6 +77,9 @@ async function destroyTestUsers() {
 async function teardown() {
   await db.query(`delete from public.imports where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
   await db.query(`delete from public.facility_column_mappings where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
+  await db.query(`delete from public.sessions where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
+  await db.query(`delete from public.session_templates where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
+  await db.query(`delete from public.job_runs where job_name = 'rls-test-job'`);
   await db.query(`delete from public.facility_members where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
   await db.query(`delete from public.players where id in ($1, $2)`, [PLAYER_1, PLAYER_2]);
   await db.query(`delete from public.facilities where id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
@@ -134,13 +137,29 @@ try {
             ($2, 1, '{"Email":"b@example.com"}'::jsonb, 'skipped', 'no_identifiers')`,
     [importA, importB],
   );
+  await db.query(
+    `insert into public.session_templates (facility_id, name, weekdays, start_time_local, end_time_local)
+     values ($1, 'RLS Test Template A', array[2]::smallint[], '19:00', '21:00'),
+            ($2, 'RLS Test Template B', array[4]::smallint[], '18:00', '20:00')`,
+    [FACILITY_A, FACILITY_B],
+  );
+  await db.query(
+    `insert into public.sessions (facility_id, source, session_type, starts_at, ends_at)
+     values ($1, 'native', 'open_play', now() + interval '1 day', now() + interval '1 day 2 hours'),
+            ($2, 'native', 'social',    now() + interval '2 days', now() + interval '2 days 2 hours')`,
+    [FACILITY_A, FACILITY_B],
+  );
+  await db.query(
+    `insert into public.job_runs (job_name, status, stats)
+     values ('rls-test-job', 'succeeded', '{"probe":true}'::jsonb)`,
+  );
 
   // ------------------------------------------------------------------- anon
   console.log('\n[verify-rls] as anon (publishable key, no session)');
   const anon = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  for (const table of ['facilities', 'players', 'facility_members', 'imports', 'facility_column_mappings', 'import_rows']) {
+  for (const table of ['facilities', 'players', 'facility_members', 'imports', 'facility_column_mappings', 'import_rows', 'session_templates', 'sessions', 'job_runs']) {
     const cols = table === 'players' ? 'id, display_name' : '*';
     const { data, error } = await anon.from(table).select(cols);
     // Zero grants for anon: permission-denied is the expected shape; an empty
@@ -203,6 +222,25 @@ try {
       er?.message ?? `got ${dr?.length} rows`);
   }
   {
+    const { data, error } = await c1.from('sessions').select('id, facility_id');
+    check(!error && data.length === 1 && data[0].facility_id === FACILITY_A,
+      'sessions: member sees own facility session only', error?.message ?? JSON.stringify(data));
+    const { data: dt, error: et } = await c1.from('session_templates').select('id, facility_id, name');
+    check(!et && dt.length === 1 && dt[0].facility_id === FACILITY_A,
+      'session_templates: member sees own facility template only (member-read ruling)',
+      et?.message ?? JSON.stringify(dt));
+    const { data: dj, error: ej } = await c1.from('job_runs').select('id');
+    check(ej !== null || dj.length === 0,
+      `job_runs: member reads nothing (${ej ? 'permission denied' : '0 rows'})`,
+      ej ? '' : `got ${dj?.length} rows`);
+    const ins = await c1.from('sessions').insert({
+      facility_id: FACILITY_A, source: 'native', session_type: 'open_play',
+      starts_at: new Date(Date.now() + 86400000).toISOString(),
+      ends_at: new Date(Date.now() + 90000000).toISOString(),
+    });
+    check(ins.error !== null, 'sessions: member insert is refused');
+  }
+  {
     const upd = await c1.from('players').update({ display_name: 'Hacked' }).eq('id', PLAYER_2).select('id');
     check(!upd.error && upd.data.length === 0, 'players: cross-row update touches 0 rows',
       upd.error?.message ?? `touched ${upd.data?.length}`);
@@ -245,6 +283,16 @@ try {
     const { data: da, error: ea } = await c2.from('import_rows').select('id').eq('outcome', 'created');
     check(!ea && da.length === 0, 'import_rows: facility A rows return zero for B organizer',
       ea?.message ?? `got ${da?.length} rows`);
+  }
+  {
+    const { data, error } = await c2.from('session_templates').select('id, facility_id');
+    check(!error && data.length === 1 && data[0].facility_id === FACILITY_B,
+      'session_templates: organizer sees own facility template only',
+      error?.message ?? JSON.stringify(data));
+    const { data: dj, error: ej } = await c2.from('job_runs').select('id');
+    check(ej !== null || dj.length === 0,
+      `job_runs: even organizer reads nothing (${ej ? 'permission denied' : '0 rows'})`,
+      ej ? '' : `got ${dj?.length} rows`);
   }
 
   console.log(failures ? `\n[verify-rls] ${failures} FAILURE(S)\n` : '\n[verify-rls] All checks passed.\n');
