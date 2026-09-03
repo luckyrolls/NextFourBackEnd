@@ -1,0 +1,37 @@
+# Scheduled session generation.
+#
+# Cadence (plain English, per CLAUDE.md hard rule 7): once per day at 09:07 UTC —
+# early morning US-Eastern (4:07am EDT / 5:07am EST). Template CRUD also triggers
+# generation inline, so this run only advances the 14-day horizon. It does not
+# run hourly, and never every minute.
+#
+# ⚠️  The `schedule` trigger is COMMENTED OUT until the JOB_RUN_TOKEN secret is
+# confirmed set (repo Settings -> Secrets and variables -> Actions). Enable by
+# uncommenting the two lines below. Until then, run it manually from the
+# Actions tab (workflow_dispatch).
+#
+# Known GitHub Actions caveats (documented in CLAUDE.md):
+#  - Schedules are disabled after 60 days without repo activity; a push or a
+#    manual run re-enables them.
+#  - Scheduled runs can lag minutes to hours at busy times; the daily horizon
+#    job is insensitive to that.
+
+name: generate-sessions
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '7 9 * * *'   # daily 09:07 UTC — see cadence note above
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the generation endpoint
+        # 90s max time per attempt (Render free tier cold start), one retry.
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --max-time 90 --retry 1 --retry-delay 15 --retry-all-errors \
+            -X POST \
+            -H "X-Job-Token: ${{ secrets.JOB_RUN_TOKEN }}" \
+            https://nextfourbackend.onrender.com/internal/jobs/generate-sessions

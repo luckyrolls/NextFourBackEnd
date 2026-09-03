@@ -94,6 +94,37 @@ but ingestion stores them verbatim in `import_rows.raw` only — interpreting cl
 strings (Active/Frozen/Expired) would be hardcoded club semantics. Revisit when a real
 export shows the actual vocabulary.
 
+**session_type deviates from 02-architecture: it includes `social`.** Southcoast's
+real schedule has social events (Friday Night Out, Saturday Social) that are not
+open play, league, clinic, or crew sessions. Ruled in at enum creation (004).
+
+**RLS variant #3 — backend-only tables.** `job_runs` has RLS ENABLED with ZERO
+policies and an explicit `revoke all ... from anon, authenticated`. Nothing any
+client role does can ever read or write it; the backend's secret key (BYPASSRLS)
+is the only path. Use this variant for tables with no client-facing surface at all.
+Variants: #1 member-scoped select via `app.my_facility_ids()` (facilities, sessions,
+session_templates...), #2 admin-scoped via `app.my_admin_facility_ids()` (imports,
+mappings, import_rows), #3 none.
+
+**DB clock vs local clock: never stamp finished_at from `new Date()`.** `started_at`
+defaults to the DATABASE clock; both `imports` and `job_runs` check
+`finished_at >= started_at`. A local clock even slightly behind Supabase's makes a
+fast run "finish before it started" and the finalize UPDATE fails its check — and
+Postgres keeps microseconds while JS Date truncates to milliseconds, so a bare clamp
+still loses. Use `finishedAtAfter(started_at)` (src/lib/time.ts). Found because a
+job_runs finalize error went unchecked — check every write's error.
+
+**GitHub Actions scheduling caveats.** The generate-sessions schedule is disabled
+automatically after 60 days without repo activity (a push or manual dispatch
+re-enables it), and scheduled runs can lag minutes-to-hours at busy times. The daily
+horizon job tolerates both; do not put lag-sensitive work on Actions cron. The
+workflow calls the endpoint with a 90s timeout and one retry for Render free-tier
+cold starts.
+
+**Job cadence (hard rule 7).** generate-sessions: once per day at 09:07 UTC (early
+morning US-Eastern), cron `7 9 * * *`, plus inline on template CRUD and on demand
+via POST /facilities/:id/generate-sessions. Not hourly; never every minute.
+
 **Render — buildCommand must compile TypeScript, and must force dev dependencies.**
 Two distinct failure modes, both seen:
 1. A build command of `npm install` alone (Render's default for a service created in
@@ -120,6 +151,12 @@ The session pooler host contains `pooler.supabase.com` and the user is
   row or claims an existing shadow row by normalized email. Until a later slice decides
   the mechanism (backend endpoint vs. DB trigger), a newly signed-up user resolves to no
   player and sees zero rows everywhere.
+
+- **Template edit semantics to design later**: RSVP carry-over when a time edit
+  cancels-and-recreates future sessions (Slice 3), and template SPLIT when one
+  merged multi-day line needs per-day divergence.
+- **Southcoast weekly recurrence is assumed from one observed week** (Sept 6-12,
+  2026) — verify against the club before the pilot.
 
 ## Definition of done per slice
 
