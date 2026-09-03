@@ -116,6 +116,47 @@ try {
   );
   console.log(`[seed] dev organizer ready: ${ORGANIZER_EMAIL} (organizer of the seed facility)`);
 
+  // Southcoast's REAL weekly schedule as observed for the week of Sept 6-12, 2026.
+  // Weekly recurrence is ASSUMED from that single observed week — UNVERIFIED.
+  // Skill bands are the club's labels verbatim (free text, never parsed).
+  // Lines identical across days are merged into one template (weekdays array);
+  // per-day divergence later requires a template SPLIT (future edit semantics).
+  // Sunday Beginner cap deliberately null (source said "25?"); Wed Beginner is 25.
+  // Unknown caps = null. ISO weekdays: 1=Mon .. 7=Sun.
+  const TEMPLATES = [
+    // [id-suffix, name, type, band label, weekdays, start, end, cap]
+    ['01', 'Beginner',            'open_play', 'Beginner',            [7],    '09:00', '12:00', null],
+    ['02', 'Beginner',            'open_play', 'Beginner',            [3],    '09:00', '12:00', 25],
+    ['03', 'Intermediate',        'open_play', 'Intermediate',        [7],    '13:00', '16:00', 30],
+    ['04', 'Adv-Inter',           'open_play', 'Adv-Inter',           [1],    '09:00', '12:00', null],
+    ['05', 'Advancing Beginner',  'open_play', 'Advancing Beginner',  [1],    '12:30', '15:30', null],
+    ['06', 'Intermediate',        'open_play', 'Intermediate',        [2, 4], '09:00', '12:00', 30],
+    ['07', 'Low Intermediate',    'open_play', 'Low Intermediate',    [2, 5], '12:00', '15:00', 36],
+    ['08', 'All Play',            'open_play', 'All Play',            [2],    '18:00', '21:00', 30],
+    ['09', 'Adv-Inter',           'open_play', 'Adv-Inter',           [3],    '17:30', '20:30', null],
+    ['10', 'Advanced 4.0+',       'open_play', 'Advanced 4.0+',       [4],    '18:00', '21:00', null],
+    ['11', 'Intermediate',        'open_play', 'Intermediate',        [5],    '09:00', '12:00', null],
+    ['12', 'Friday Night Out',    'social',    null,                  [5],    '17:00', '20:00', null],
+    ['13', 'Advanced 4.0+',       'open_play', 'Advanced 4.0+',       [6],    '09:00', '12:00', null],
+    ['14', 'Saturday Social',     'social',    null,                  [6],    '14:00', '17:00', 30],
+  ];
+  let templatesCreated = 0;
+  for (const [suffix, name, type, band, weekdays, start, end, cap] of TEMPLATES) {
+    const t = await client.query(
+      `insert into public.session_templates
+         (id, facility_id, name, session_type, skill_band_label, weekdays,
+          start_time_local, end_time_local, capacity, created_by)
+       values ($1, $2, $3, $4, $5, $6::smallint[], $7, $8, $9, $10)
+       on conflict (id) do nothing`,
+      [
+        `d5eed000-0000-4000-a000-0000000003${suffix}`,
+        FACILITY_ID, name, type, band, weekdays, start, end, cap, ORGANIZER_PLAYER_ID,
+      ],
+    );
+    templatesCreated += t.rowCount;
+  }
+  console.log(`[seed] session templates created: ${templatesCreated} of ${TEMPLATES.length} (0 = already seeded)`);
+
   await client.query('commit');
   console.log(
     `[seed] facility created: ${fac.rowCount}, players created: ${playersCreated}, ` +
