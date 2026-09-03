@@ -7,6 +7,7 @@ import { sendValidated } from '../lib/http';
 import { runImportRows, SKIP_REASONS } from '../lib/ingest';
 import { diffHeaderSignature, type ColumnMapping } from '../lib/mapping';
 import { parseMembersWorkbook, WorkbookFormatError } from '../lib/parseXlsx';
+import { finishedAtAfter } from '../lib/time';
 import { supabase } from '../lib/supabase';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -116,7 +117,7 @@ importsRouter.post(
           column_mapping_id: mappingRow.id,
           status: 'running',
         })
-        .select('id, correlation_id')
+        .select('id, correlation_id, started_at')
         .single();
       if (importError || !importRow) throw importError ?? new Error('imports insert returned no row');
 
@@ -131,7 +132,7 @@ importsRouter.post(
       } catch (error) {
         await supabase()
           .from('imports')
-          .update({ status: 'failed', finished_at: new Date().toISOString() })
+          .update({ status: 'failed', finished_at: finishedAtAfter(importRow.started_at) })
           .eq('id', importRow.id);
         next(error);
         return;
@@ -155,7 +156,7 @@ importsRouter.post(
         .from('imports')
         .update({
           status: 'succeeded',
-          finished_at: new Date().toISOString(),
+          finished_at: finishedAtAfter(importRow.started_at),
           rows_matched: run.counts.matched,
           rows_created: run.counts.created,
           rows_skipped: run.counts.skipped,

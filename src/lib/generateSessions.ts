@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { addDays, expandRule, localToday } from './schedule';
+import { finishedAtAfter } from './time';
 
 export interface GenerationStats {
   facilities: number;
@@ -162,7 +163,7 @@ export async function runGenerationJob(
   const { data: jobRow, error: jobError } = await db
     .from('job_runs')
     .insert({ job_name: 'generate_sessions', status: 'running' })
-    .select('id, correlation_id')
+    .select('id, correlation_id, started_at')
     .single();
   if (jobError || !jobRow) throw new Error(`job_runs insert: ${jobError?.message ?? 'no row'}`);
 
@@ -178,20 +179,25 @@ export async function runGenerationJob(
       for (const k of Object.keys(total) as (keyof GenerationStats)[]) total[k] += stats[k];
     }
 
-    await db
+    const { error: finishError } = await db
       .from('job_runs')
-      .update({ status: 'succeeded', finished_at: new Date().toISOString(), stats: total })
+      .update({ status: 'succeeded', finished_at: finishedAtAfter(jobRow.started_at), stats: total })
       .eq('id', jobRow.id);
+    if (finishError) throw new Error(`job_runs finalize: ${finishError.message}`);
     return { jobRunId: jobRow.id, correlationId: jobRow.correlation_id, status: 'succeeded', stats: total };
   } catch (error) {
-    await db
+    const { error: failError } = await db
       .from('job_runs')
       .update({
         status: 'failed',
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAtAfter(jobRow.started_at),
         stats: { ...total, error: error instanceof Error ? error.message : String(error) },
       })
       .eq('id', jobRow.id);
+    if (failError) {
+      // eslint-disable-next-line no-console
+      console.error(`job_runs failure record did not land: ${failError.message}`);
+    }
     throw error;
   }
 }
