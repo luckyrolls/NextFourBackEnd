@@ -75,10 +75,10 @@ enum value in the same transaction when the type itself was created there. So
 
 **supabase-js v2.58+ requires a WebSocket at `createClient` time; Node 20 has none.**
 The realtime client initializes in the SupabaseClient constructor and throws on Node 20
-(`Node.js 20 detected without native WebSocket support`). `npm run verify:rls` runs node
-with `--experimental-websocket`. The backend's own `createClient` (src/lib/supabase.ts)
-has the same latent problem — nothing calls it yet, but the first slice that does must
-either move Render + engines to Node 22 (native WebSocket) or add the `ws` transport.
+(`Node.js 20 detected without native WebSocket support`). Resolved by pinning Node 22
+(native WebSocket) everywhere: `engines`, `.nvmrc`, and Render's `NODE_VERSION`. Local
+dev must run Node 22 too — `nvm use` picks it up from `.nvmrc`; on Node 20 anything
+that constructs a Supabase client (e.g. `npm run verify:rls`) crashes at startup.
 
 **Render — buildCommand must compile TypeScript, and must force dev dependencies.**
 Two distinct failure modes, both seen:

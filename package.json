@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "main": "dist/index.js",
   "engines": {
-    "node": ">=20.11.0 <21"
+    "node": ">=22.11.0 <23"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -17,7 +17,7 @@
     "migrate:status": "node scripts/migrate.mjs --status",
     "smoke": "node scripts/smoke.mjs",
     "seed:dev": "node scripts/seed-dev.mjs",
-    "verify:rls": "node --experimental-websocket scripts/verify-rls.mjs"
+    "verify:rls": "node scripts/verify-rls.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
