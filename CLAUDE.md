@@ -73,6 +73,13 @@ wraps each file in a single transaction, and Postgres only allows using a freshl
 enum value in the same transaction when the type itself was created there. So
 `alter type ... add value 'x'` in 00N and the backfill using `'x'` in 00N+1.
 
+**supabase-js v2.58+ requires a WebSocket at `createClient` time; Node 20 has none.**
+The realtime client initializes in the SupabaseClient constructor and throws on Node 20
+(`Node.js 20 detected without native WebSocket support`). `npm run verify:rls` runs node
+with `--experimental-websocket`. The backend's own `createClient` (src/lib/supabase.ts)
+has the same latent problem — nothing calls it yet, but the first slice that does must
+either move Render + engines to Node 22 (native WebSocket) or add the `ws` transport.
+
 **Render — buildCommand must compile TypeScript, and must force dev dependencies.**
 Two distinct failure modes, both seen:
 1. A build command of `npm install` alone (Render's default for a service created in
