@@ -12,6 +12,9 @@ const envSchema = z.object({
     .string({ required_error: 'SUPABASE_SECRET_KEY is required' })
     .min(1, 'SUPABASE_SECRET_KEY must not be empty'),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
+  // Machine token for /internal/jobs/*. Optional: when unset the job endpoint
+  // answers 503 rather than the whole service refusing to boot.
+  JOB_RUN_TOKEN: z.string().min(16, 'JOB_RUN_TOKEN must be at least 16 chars').optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
 

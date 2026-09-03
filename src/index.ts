@@ -7,6 +7,8 @@ import { env } from './lib/env';
 import { columnMappingsRouter } from './routes/columnMappings';
 import { healthRouter } from './routes/health';
 import { importsRouter } from './routes/imports';
+import { jobsRouter } from './routes/jobs';
+import { sessionTemplatesRouter } from './routes/sessionTemplates';
 import { SERVICE_VERSION } from './lib/version';
 
 // Fail fast: validate the whole environment contract before binding a port, so a
@@ -22,6 +24,8 @@ app.use(express.json({ limit: '1mb' }));
 app.use(healthRouter);
 app.use(columnMappingsRouter);
 app.use(importsRouter);
+app.use(sessionTemplatesRouter);
+app.use(jobsRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' });
