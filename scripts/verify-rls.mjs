@@ -76,6 +76,7 @@ async function destroyTestUsers() {
 
 async function teardown() {
   await db.query(`delete from public.imports where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
+  await db.query(`delete from public.facility_column_mappings where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
   await db.query(`delete from public.facility_members where facility_id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
   await db.query(`delete from public.players where id in ($1, $2)`, [PLAYER_1, PLAYER_2]);
   await db.query(`delete from public.facilities where id in ($1, $2)`, [FACILITY_A, FACILITY_B]);
@@ -112,11 +113,26 @@ try {
      on conflict (facility_id, player_id) do nothing`,
     [FACILITY_A, PLAYER_1, FACILITY_B, PLAYER_2],
   );
-  await db.query(
+  const imps = await db.query(
     `insert into public.imports (facility_id, adapter, source_label, status)
      values ($1, 'report_upload', 'rls-test-a.xlsx', 'succeeded'),
-            ($2, 'report_upload', 'rls-test-b.xlsx', 'succeeded')`,
+            ($2, 'report_upload', 'rls-test-b.xlsx', 'succeeded')
+     returning id, facility_id`,
     [FACILITY_A, FACILITY_B],
+  );
+  const importA = imps.rows.find((r) => r.facility_id === FACILITY_A).id;
+  const importB = imps.rows.find((r) => r.facility_id === FACILITY_B).id;
+  await db.query(
+    `insert into public.facility_column_mappings (facility_id, version, mapping, header_signature)
+     values ($1, 1, '{"email":"Email"}'::jsonb, array['Email']),
+            ($2, 1, '{"email":"Email"}'::jsonb, array['Email'])`,
+    [FACILITY_A, FACILITY_B],
+  );
+  await db.query(
+    `insert into public.import_rows (import_id, row_number, raw, outcome, skip_reason)
+     values ($1, 1, '{"Email":"a@example.com"}'::jsonb, 'created', null),
+            ($2, 1, '{"Email":"b@example.com"}'::jsonb, 'skipped', 'no_identifiers')`,
+    [importA, importB],
   );
 
   // ------------------------------------------------------------------- anon
@@ -124,7 +140,7 @@ try {
   const anon = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  for (const table of ['facilities', 'players', 'facility_members', 'imports']) {
+  for (const table of ['facilities', 'players', 'facility_members', 'imports', 'facility_column_mappings', 'import_rows']) {
     const cols = table === 'players' ? 'id, display_name' : '*';
     const { data, error } = await anon.from(table).select(cols);
     // Zero grants for anon: permission-denied is the expected shape; an empty
@@ -179,6 +195,14 @@ try {
       error?.message ?? `got ${data?.length} rows`);
   }
   {
+    const { data, error } = await c1.from('facility_column_mappings').select('id');
+    check(!error && data.length === 0, 'facility_column_mappings: plain member sees zero rows',
+      error?.message ?? `got ${data?.length} rows`);
+    const { data: dr, error: er } = await c1.from('import_rows').select('id');
+    check(!er && dr.length === 0, 'import_rows: plain member sees zero rows',
+      er?.message ?? `got ${dr?.length} rows`);
+  }
+  {
     const upd = await c1.from('players').update({ display_name: 'Hacked' }).eq('id', PLAYER_2).select('id');
     check(!upd.error && upd.data.length === 0, 'players: cross-row update touches 0 rows',
       upd.error?.message ?? `touched ${upd.data?.length}`);
@@ -206,6 +230,21 @@ try {
     const { data, error } = await c2.from('imports').select('id, facility_id');
     check(!error && data.length === 1 && data[0].facility_id === FACILITY_B,
       'imports: organizer sees own facility row only', error?.message ?? JSON.stringify(data));
+  }
+  {
+    const { data, error } = await c2.from('facility_column_mappings').select('id, facility_id');
+    check(!error && data.length === 1 && data[0].facility_id === FACILITY_B,
+      'facility_column_mappings: organizer sees own facility mapping only',
+      error?.message ?? JSON.stringify(data));
+  }
+  {
+    const { data, error } = await c2.from('import_rows').select('id, import_id, skip_reason');
+    check(!error && data.length === 1 && data[0].skip_reason === 'no_identifiers',
+      'import_rows: organizer sees own facility rows only (B has the skipped row)',
+      error?.message ?? JSON.stringify(data));
+    const { data: da, error: ea } = await c2.from('import_rows').select('id').eq('outcome', 'created');
+    check(!ea && da.length === 0, 'import_rows: facility A rows return zero for B organizer',
+      ea?.message ?? `got ${da?.length} rows`);
   }
 
   console.log(failures ? `\n[verify-rls] ${failures} FAILURE(S)\n` : '\n[verify-rls] All checks passed.\n');
