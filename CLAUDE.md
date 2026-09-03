@@ -50,6 +50,29 @@ Member-to-member social/coordination layer for pickleball facilities, sitting al
 
 *(Append as discovered. Empty is a good sign; undocumented is not.)*
 
+**RLS verification must use the PUBLISHABLE key.** Both `service_role` (the secret
+key) and the `postgres` role have the `BYPASSRLS` attribute — verified against the live
+project — so any RLS test through the secret key or a direct DB connection passes
+whether or not the policies work. `npm run verify:rls` signs in real test users with
+the publishable key. `SUPABASE_PUBLISHABLE_KEY` in `.env` exists only for this.
+
+**The app must never `select('*')` on `players`.** `email` and `auth_user_id` are
+withheld from clients by a column-scoped grant (`select (id, display_name, created_at)`),
+so `select('*')` — and any explicit select of `email` — fails with permission denied by
+design. Always list columns. Same for updates: only `display_name` is client-writable.
+
+**RLS policies must not read their own table directly.** A `facility_members` policy
+that queries `facility_members` recurses (Postgres errors out). Membership lookups in
+policies go through the `SECURITY DEFINER` helpers in the `app` schema
+(`app.current_player_id()`, `app.my_facility_ids()`, `app.my_admin_facility_ids()`),
+which are owned by `postgres` and bypass RLS. New policies in later slices should reuse
+these, not re-derive membership.
+
+**Extending an enum and using the new value cannot share one migration.** The runner
+wraps each file in a single transaction, and Postgres only allows using a freshly added
+enum value in the same transaction when the type itself was created there. So
+`alter type ... add value 'x'` in 00N and the backfill using `'x'` in 00N+1.
+
 **Render — buildCommand must compile TypeScript, and must force dev dependencies.**
 Two distinct failure modes, both seen:
 1. A build command of `npm install` alone (Render's default for a service created in
@@ -68,6 +91,14 @@ and fails with `ENOTFOUND` on IPv4-only networks, which includes most home ISPs.
 The session pooler host contains `pooler.supabase.com` and the user is
 `postgres.<project-ref>` (not bare `postgres`). This is what `SUPABASE_DB_URL` in
 `.env.example` documents.
+
+## Open items
+
+- **Player-row creation at signup is unresolved (deliberate 002 gap).** Clients have no
+  INSERT on `players`, and nothing yet links a fresh `auth.users` signup to a `players`
+  row or claims an existing shadow row by normalized email. Until a later slice decides
+  the mechanism (backend endpoint vs. DB trigger), a newly signed-up user resolves to no
+  player and sees zero rows everywhere.
 
 ## Definition of done per slice
 

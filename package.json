@@ -2,7 +2,7 @@
   "name": "nextfour-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "NextFour backend — Node/TypeScript Express API on Render, backed by Supabase Postgres.",
+  "description": "NextFour backend \u2014 Node/TypeScript Express API on Render, backed by Supabase Postgres.",
   "license": "UNLICENSED",
   "main": "dist/index.js",
   "engines": {
@@ -15,7 +15,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "seed:dev": "node scripts/seed-dev.mjs",
+    "verify:rls": "node scripts/verify-rls.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
