@@ -155,8 +155,9 @@ The session pooler host contains `pooler.supabase.com` and the user is
 - **Template edit semantics to design later**: RSVP carry-over when a time edit
   cancels-and-recreates future sessions (Slice 3), and template SPLIT when one
   merged multi-day line needs per-day divergence.
-- **Southcoast weekly recurrence is assumed from one observed week** (Sept 6-12,
-  2026) — verify against the club before the pilot.
+- **Southcoast weekly recurrence confirmed against a second observed week** (Sept
+  2026). Seasonal schedule changes are still expected and will surface as a
+  template edit, not a bug.
 
 ## Definition of done per slice
 

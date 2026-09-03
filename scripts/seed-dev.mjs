@@ -117,7 +117,9 @@ try {
   console.log(`[seed] dev organizer ready: ${ORGANIZER_EMAIL} (organizer of the seed facility)`);
 
   // Southcoast's REAL weekly schedule as observed for the week of Sept 6-12, 2026.
-  // Weekly recurrence is ASSUMED from that single observed week — UNVERIFIED.
+  // Weekly recurrence CONFIRMED against a second observed week (Sept 2026).
+  // Seasonal schedule changes are still expected — they surface as a template
+  // edit, not a bug.
   // Skill bands are the club's labels verbatim (free text, never parsed).
   // Lines identical across days are merged into one template (weekdays array);
   // per-day divergence later requires a template SPLIT (future edit semantics).
