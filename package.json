@@ -2,7 +2,7 @@
   "name": "nextfour-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "NextFour backend — Node/TypeScript Express API on Render, backed by Supabase Postgres.",
+  "description": "NextFour backend \u2014 Node/TypeScript Express API on Render, backed by Supabase Postgres.",
   "license": "UNLICENSED",
   "main": "dist/index.js",
   "engines": {
@@ -18,9 +18,11 @@
     "smoke": "node scripts/smoke.mjs",
     "seed:dev": "node scripts/seed-dev.mjs",
     "verify:rls": "node scripts/verify-rls.mjs",
-    "import:dev": "node scripts/import-dev.mjs"
+    "import:dev": "node scripts/import-dev.mjs",
+    "test:schedule": "node scripts/test-schedule.mjs"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@supabase/supabase-js": "^2.58.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -28,7 +30,6 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@js-temporal/polyfill": "^0.5.1",
     "@types/express": "^4.17.23",
     "@types/multer": "^2.2.0",
     "@types/node": "^20.19.9",
