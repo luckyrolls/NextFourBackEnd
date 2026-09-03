@@ -80,6 +80,20 @@ The realtime client initializes in the SupabaseClient constructor and throws on 
 dev must run Node 22 too — `nvm use` picks it up from `.nvmrc`; on Node 20 anything
 that constructs a Supabase client (e.g. `npm run verify:rls`) crashes at startup.
 
+**SheetJS must come from cdn.sheetjs.com, never the npm registry.** The npm `xlsx`
+package is frozen at 0.18.5 — the exact version npm audit flags (prototype pollution +
+ReDoS). Fixed builds ship only as CDN tarballs; package.json pins
+`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` and the lockfile carries its
+integrity hash. Upgrades mean editing that URL, not `npm update`. Parse with
+`{ defval: null, raw: false }` — the defaults silently drop empty cells' keys and leave
+numeric cells as numbers.
+
+**Imported phone / membership status have no destination columns yet.** The mapping
+vocabulary accepts `phone` and `membership_status` so mappings can document the export,
+but ingestion stores them verbatim in `import_rows.raw` only — interpreting club status
+strings (Active/Frozen/Expired) would be hardcoded club semantics. Revisit when a real
+export shows the actual vocabulary.
+
 **Render — buildCommand must compile TypeScript, and must force dev dependencies.**
 Two distinct failure modes, both seen:
 1. A build command of `npm install` alone (Render's default for a service created in
