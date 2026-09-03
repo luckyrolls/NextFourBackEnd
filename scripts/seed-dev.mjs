@@ -7,6 +7,7 @@
  * Dev only. Run: npm run seed:dev  (requires SUPABASE_DB_URL in .env)
  */
 import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 
 if (process.env.NODE_ENV === 'production') {
@@ -19,6 +20,20 @@ if (!connectionString) {
   console.error('[seed] SUPABASE_DB_URL is not set (see .env.example).');
   process.exit(1);
 }
+
+// Dev organizer: a REAL auth user (organizer role) so the admin endpoints and
+// npm run import:dev can authenticate the way production will.
+const { SUPABASE_URL, SUPABASE_SECRET_KEY, DEV_ORGANIZER_PASSWORD } = process.env;
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY || !DEV_ORGANIZER_PASSWORD) {
+  console.error(
+    '[seed] SUPABASE_URL, SUPABASE_SECRET_KEY and DEV_ORGANIZER_PASSWORD are required ' +
+      '(see .env.example). DEV_ORGANIZER_PASSWORD is a local dev credential you choose.',
+  );
+  process.exit(1);
+}
+const ORGANIZER_EMAIL = 'dev.organizer@example.com';
+const ORGANIZER_PLAYER_ID = 'd5eed000-0000-4000-a000-000000000110';
+const ORGANIZER_MEMBER_ID = 'd5eed000-0000-4000-a000-000000000210';
 
 // Fixed IDs — the d5eed... prefix marks every row this script owns.
 const FACILITY_ID = 'd5eed000-0000-4000-a000-000000000001';
@@ -68,6 +83,38 @@ try {
     );
     membersCreated += m.rowCount;
   }
+
+  // Organizer auth user (idempotent: reuse if it already exists, sync password).
+  const admin = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  let authUser = (userList?.users ?? []).find((u) => u.email === ORGANIZER_EMAIL);
+  if (authUser) {
+    await admin.auth.admin.updateUserById(authUser.id, { password: DEV_ORGANIZER_PASSWORD });
+  } else {
+    const createdUser = await admin.auth.admin.createUser({
+      email: ORGANIZER_EMAIL,
+      password: DEV_ORGANIZER_PASSWORD,
+      email_confirm: true,
+    });
+    if (createdUser.error) throw new Error(`organizer auth user: ${createdUser.error.message}`);
+    authUser = createdUser.data.user;
+  }
+
+  await client.query(
+    `insert into public.players (id, email, display_name, auth_user_id)
+     values ($1, $2, 'Dev Organizer', $3)
+     on conflict (id) do update set auth_user_id = excluded.auth_user_id`,
+    [ORGANIZER_PLAYER_ID, ORGANIZER_EMAIL, authUser.id],
+  );
+  await client.query(
+    `insert into public.facility_members (id, facility_id, player_id, role, status, joined_via)
+     values ($1, $2, $3, 'organizer', 'active', 'signup')
+     on conflict (id) do nothing`,
+    [ORGANIZER_MEMBER_ID, FACILITY_ID, ORGANIZER_PLAYER_ID],
+  );
+  console.log(`[seed] dev organizer ready: ${ORGANIZER_EMAIL} (organizer of the seed facility)`);
 
   await client.query('commit');
   console.log(
